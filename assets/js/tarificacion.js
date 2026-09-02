@@ -87,7 +87,13 @@
   }
   function resetContainer(container) { container.querySelectorAll('input:not([type="radio"]), textarea, select').forEach((field) => { if (field.type === 'checkbox') field.checked = false; else field.value = ''; }); }
   function resetDemo() { form.reset(); current = 1; previousType = ''; home.hidden = true; vehicle.hidden = true; setDisabled(home, true); setDisabled(vehicle, true); document.querySelectorAll('.file-field small').forEach((small) => { small.textContent = small.closest('#dni-file') ? 'JPG, JPEG, PNG o PDF · máximo 10 MB · nunca se leerá el contenido.' : ''; }); message('Demostración reiniciada.'); updateStep(); }
-  form.querySelectorAll('input[name="insurance-type"]').forEach((input) => input.addEventListener('change', () => { if (previousType && previousType !== input.value) resetContainer(previousType === 'hogar' ? home : vehicle); previousType = input.value; showRiskFields(); }));
+  form.querySelectorAll('input[name="insurance-type"]').forEach((input) => input.addEventListener('change', () => {
+    if (previousType && previousType !== input.value) resetContainer(previousType === 'hogar' ? home : vehicle);
+    previousType = input.value;
+    showRiskFields();
+    current = 2;
+    updateStep();
+  }));
   form.querySelectorAll('input[name="id-method"]').forEach((input) => input.addEventListener('change', showRiskFields));
   document.getElementById('home-range').addEventListener('input', (event) => { document.getElementById('home-value').value = event.target.value; });
   document.getElementById('home-value').addEventListener('input', (event) => { document.getElementById('home-range').value = Math.min(200000, Math.max(0, event.target.value || 0)); });
