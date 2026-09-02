@@ -12,6 +12,7 @@
   let current = 1;
   let previousType = '';
   let opener = null;
+  const previewUrls = new Map();
 
   const normalize = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const insurerList = [...new Set(window.AfisInsurers)].sort((a, b) => normalize(a).localeCompare(normalize(b), 'es'));
@@ -85,8 +86,38 @@
     lines.push(`<li><strong>Contacto:</strong> ${document.getElementById('first-name').value} ${document.getElementById('last-name').value} · ${document.getElementById('phone').value} · ${document.getElementById('email').value}</li>`);
     document.getElementById('summary').innerHTML = `<ul>${lines.join('')}</ul>`;
   }
-  function resetContainer(container) { container.querySelectorAll('input:not([type="radio"]), textarea, select').forEach((field) => { if (field.type === 'checkbox') field.checked = false; else field.value = ''; }); }
-  function resetDemo() { form.reset(); current = 1; previousType = ''; home.hidden = true; vehicle.hidden = true; setDisabled(home, true); setDisabled(vehicle, true); document.querySelectorAll('.file-field small').forEach((small) => { small.textContent = small.closest('#dni-file') ? 'JPG, JPEG, PNG o PDF · máximo 10 MB · nunca se leerá el contenido.' : ''; }); message('Demostración reiniciada.'); updateStep(); }
+  function clearUpload(input, text = '') {
+    const widget = input.closest('.upload-widget');
+    if (!widget) return;
+    const previousUrl = previewUrls.get(input.id);
+    if (previousUrl) { URL.revokeObjectURL(previousUrl); previewUrls.delete(input.id); }
+    input.value = '';
+    const selected = widget.querySelector('.upload-selected');
+    selected.hidden = true; selected.classList.remove('is-image');
+    widget.querySelector('.upload-preview').removeAttribute('src');
+    widget.closest('.file-field').querySelector('.upload-message').textContent = text;
+  }
+  function updateUpload(input) {
+    const widget = input.closest('.upload-widget');
+    if (!widget) return;
+    const file = input.files[0];
+    const field = widget.closest('.file-field');
+    const notice = field.querySelector('.upload-message');
+    if (!file) { clearUpload(input); return; }
+    if (!/\.(jpe?g|png|pdf)$/i.test(file.name)) { clearUpload(input, 'Selecciona un archivo JPG, JPEG, PNG o PDF.'); return; }
+    if (file.size > 10 * 1024 * 1024) { clearUpload(input, 'El archivo supera los 10 MB. Selecciona un archivo ficticio más pequeño.'); return; }
+    const previousUrl = previewUrls.get(input.id);
+    if (previousUrl) { URL.revokeObjectURL(previousUrl); previewUrls.delete(input.id); }
+    const selected = widget.querySelector('.upload-selected');
+    const preview = widget.querySelector('.upload-preview');
+    const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|avif)$/i.test(file.name);
+    widget.querySelector('.upload-name').textContent = `${file.name} (${Math.ceil(file.size / 1024)} KB)`;
+    selected.hidden = false; selected.classList.toggle('is-image', isImage);
+    if (isImage) { const url = URL.createObjectURL(file); preview.src = url; previewUrls.set(input.id, url); }
+    notice.textContent = isImage ? 'Imagen seleccionada para previsualización local.' : 'Documento PDF seleccionado. No se previsualiza su contenido.';
+  }
+  function resetContainer(container) { container.querySelectorAll('input:not([type="radio"]), textarea, select').forEach((field) => { if (field.type === 'checkbox') field.checked = false; else field.value = ''; if (field.classList.contains('upload-input')) clearUpload(field); }); }
+  function resetDemo() { form.reset(); document.querySelectorAll('.upload-input').forEach((input) => clearUpload(input)); current = 1; previousType = ''; home.hidden = true; vehicle.hidden = true; setDisabled(home, true); setDisabled(vehicle, true); document.querySelectorAll('.file-field small').forEach((small) => { if (!small.classList.contains('upload-message')) small.textContent = small.closest('#dni-file') ? 'JPG, JPEG, PNG o PDF · máximo 10 MB · nunca se leerá el contenido.' : ''; }); message('Demostración reiniciada.'); updateStep(); }
   form.querySelectorAll('input[name="insurance-type"]').forEach((input) => input.addEventListener('change', () => {
     if (previousType && previousType !== input.value) resetContainer(previousType === 'hogar' ? home : vehicle);
     previousType = input.value;
@@ -98,7 +129,9 @@
   document.getElementById('home-range').addEventListener('input', (event) => { document.getElementById('home-value').value = event.target.value; });
   document.getElementById('home-value').addEventListener('input', (event) => { document.getElementById('home-range').value = Math.min(200000, Math.max(0, event.target.value || 0)); });
   document.getElementById('no-previous-policy').addEventListener('change', (event) => { ['previous-policy', 'insurer'].forEach((id) => { const field = document.getElementById(id); field.disabled = event.target.checked; if (event.target.checked) field.value = ''; }); });
-  form.querySelectorAll('input[type="file"]').forEach((input) => input.addEventListener('change', (event) => { const file = event.target.files[0]; const small = event.target.closest('.form-field').querySelector('small'); if (!file) return; if (file.size > 10 * 1024 * 1024) { event.target.value = ''; if (small) small.textContent = 'El archivo supera los 10 MB. Selecciona un archivo ficticio más pequeño.'; return; } if (small) small.textContent = `Documento seleccionado: ${file.name} (${Math.ceil(file.size / 1024)} KB). No se leerá su contenido.`; }));
+  document.querySelectorAll('[data-file-trigger]').forEach((button) => button.addEventListener('click', () => { document.getElementById(button.dataset.fileTrigger).click(); }));
+  document.querySelectorAll('[data-file-remove]').forEach((button) => button.addEventListener('click', () => { clearUpload(document.getElementById(button.dataset.fileRemove)); }));
+  form.querySelectorAll('input[type="file"]').forEach((input) => input.addEventListener('change', (event) => { if (event.target.classList.contains('upload-input')) { updateUpload(event.target); return; } const file = event.target.files[0]; const small = event.target.closest('.form-field').querySelector('small'); if (!file) return; if (file.size > 10 * 1024 * 1024) { event.target.value = ''; if (small) small.textContent = 'El archivo supera los 10 MB. Selecciona un archivo ficticio más pequeño.'; return; } if (small) small.textContent = `Documento seleccionado: ${file.name} (${Math.ceil(file.size / 1024)} KB). No se leerá su contenido.`; }));
   next.addEventListener('click', () => { if (!validateStep()) return; if (current === 3) createSummary(); current += 1; updateStep(); });
   back.addEventListener('click', () => { current -= 1; updateStep(); });
   form.addEventListener('submit', (event) => { event.preventDefault(); if (!validateStep()) return; opener = document.activeElement; modal.hidden = false; document.body.classList.add('modal-open'); document.getElementById('modal-title').focus(); });
